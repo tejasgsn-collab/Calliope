@@ -7,14 +7,14 @@ from Extensions import VariableViewer as VV, Highlighter as hltr, Navigator
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
-    QPlainTextEdit,
+    QTextEdit,
     QFileDialog,
     QSplitter ,
     QMessageBox,
     QToolBar,
     QTabWidget,
 )
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QColor
 from PyQt6.QtCore import  Qt, QProcess
 
 class Vertigo(QMainWindow):
@@ -27,6 +27,10 @@ class Vertigo(QMainWindow):
         super().__init__()
         self.Variables = {}
         self._var_dump_mode = False
+
+        self.default_console_color = QColor("#FFFFFF")
+        self.error_color = QColor("#FF5555")
+        self.system_color = QColor("#888888")
 
         self.setWindowTitle(name)
         self.resize(800, 420)
@@ -41,7 +45,7 @@ class Vertigo(QMainWindow):
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
 
-        self.console = QPlainTextEdit()
+        self.console = QTextEdit()
         self.console.setReadOnly(True)
         self.console.setStyleSheet(
             "background-color:#000000; color:#ffffff; font-family: Consolas; font-size: 11pt;"
@@ -78,7 +82,7 @@ class Vertigo(QMainWindow):
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
 
     def new_tab(self,name = "Untitled",path = None):
-        editor = QPlainTextEdit()
+        editor = QTextEdit()
         editor.document().modificationChanged.connect(
         lambda changed, e=editor: self._update_tab_title(e, changed)
         )
@@ -175,20 +179,24 @@ class Vertigo(QMainWindow):
                 continue
 
         # --- Normal stdout ---
-            self._console_append(line)
+            self._console_write(line + "\n")
 
         self._input_start = self.console.textCursor().position()
 
 
     def _read_stderr(self):
         data = self.process.readAllStandardError().data().decode()
-        self._console_append(data)
-        self._input_start = self.console.textCursor().position()
+        self._console_write(data,self.error_color)
 
     def _process_finished(self):
         try:
             self._var_dump_mode = False
-            self._console_append("\n[Process finished]")
+            self._console_write("\n[Process finished]\n", self.system_color)
+
+            cursor = self.console.textCursor()
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.console.setTextCursor(cursor)
+            self._input_start = cursor.position()
             self.viewer.load_variables(self.Variables)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -212,7 +220,7 @@ class Vertigo(QMainWindow):
             text = self.console.toPlainText()[self._input_start:]
             self.process.write((text + "\n").encode())
 
-            self._console_append("")  # newline visually
+            self._console_write("")  # newline visually
             self._input_start = self.console.textCursor().position()
             return
 
@@ -221,17 +229,21 @@ class Vertigo(QMainWindow):
             return
 
         self.console.setReadOnly(False)
-        QPlainTextEdit.keyPressEvent(self.console, event)
+        QTextEdit.keyPressEvent(self.console, event)
         self.console.setReadOnly(True)
 
-    def _console_append(self, text):
-        self.console.setReadOnly(False)
-        self.console.appendPlainText(text)
-        self.console.setReadOnly(True)
-
+    def _console_write(self, text, color=None):
         cursor = self.console.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self.console.setTextCursor(cursor)
+
+        if color:
+            self.console.setTextColor(color)
+        else:
+            self.console.setTextColor(self.default_console_color)
+
+        self.console.insertPlainText(text)
+        self.console.ensureCursorVisible()
 
     def iter_tabs(self):
             for i in range(self.tabs.count()):
@@ -279,7 +291,7 @@ class Vertigo(QMainWindow):
             QMessageBox.critical(self, "Error", str(e))
 
     def save_file(self, SaveAs: bool = False):
-        editor: QPlainTextEdit = self.current_editor()
+        editor: QTextEdit = self.current_editor()
         if not editor:
             return
 
@@ -332,12 +344,12 @@ class Vertigo(QMainWindow):
     def run_file(self):
         """Run current editor contents in a background Python process."""
         editor = self.tabs.currentWidget()
-        if not isinstance(editor, QPlainTextEdit):
+        if not isinstance(editor, QTextEdit):
             return
         code = editor.toPlainText()
 
         if not code.strip():
-            self._console_append("[No code to run]\n")
+            self._console_write("[No code to run]\n")
             return
 
     # write temp script file
@@ -379,7 +391,13 @@ except Exception as e:
 
     # clear console and start
         self.console.clear()
-        self._console_append("[Running...]\n")
+        self._console_write("[Running...]\n")
+
+        cursor = self.console.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.console.setTextCursor(cursor)
+        self._input_start = cursor.position()
+
         self._input_start = self.console.textCursor().position()
 
     # stop previous run if still active
@@ -394,6 +412,6 @@ except Exception as e:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = Vertigo("Test 1")
+    window = Vertigo("Test 10")
     window.showMaximized()
     sys.exit(app.exec())

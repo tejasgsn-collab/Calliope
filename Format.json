@@ -1,0 +1,29 @@
+{
+  "pykeywords": [
+    "False","None","True","and","as",
+    "assert","break","class",
+    "continue","def","del","elif","else",
+    "except","finally","for","from","global",
+    "if","import","in","is","lambda",
+    "nonlocal","not","or","pass","raise",
+    "return","try","while","with","yield"
+  ],
+  "keywords": "#FF8800",
+  "strings": "#2ECC71",
+
+  "variable": "#9CDCFE",
+  "constants": "#1900FF",
+  "class": "#56B6C2",
+  "function": "#C7C408",
+  "private": "#C678DD",
+
+  "number": "#E6A700",
+  "bool": "#FF5C5C",
+
+  "()": "#6A3DFF",
+  "{:}": "#B266FF",
+  "{}": "#8E44AD",
+  "[]": "#3A5BFF",
+
+  "@": "#FF4FD8"
+}

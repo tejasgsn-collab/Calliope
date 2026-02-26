@@ -361,7 +361,7 @@ try:
 
         print("__VAR_DUMP__")
         for var, val in namespace.items():
-            if not var.startswith("__"):
+            if not var.startswith("__") and not callable(var):
                 print(f"{{var}}|||{{type(val).__name__}}|||{{repr(val)}}")
         print("__END_VAR_DUMP__")
 

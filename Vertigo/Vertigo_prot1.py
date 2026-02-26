@@ -151,17 +151,30 @@ class Vertigo(QMainWindow):
 
         for line in raw.splitlines():
             line = line.rstrip()
+
+        # --- Start of variable dump ---
             if line == "__VAR_DUMP__":
                 self._var_dump_mode = True
                 self.Variables.clear()
                 continue
 
+        # --- End of variable dump ---
+            if line == "__END_VAR_DUMP__":
+                self._var_dump_mode = False
+
+            # 🔥 Immediately update viewer
+                self.viewer.load_variables(self.Variables.copy())
+                continue
+
+        # --- Inside dump block ---
             if self._var_dump_mode:
                 parts = line.split("|||")
                 if len(parts) == 3:
                     name, typ, value = parts
                     self.Variables[name] = value
                 continue
+
+        # --- Normal stdout ---
             self._console_append(line)
 
         self._input_start = self.console.textCursor().position()

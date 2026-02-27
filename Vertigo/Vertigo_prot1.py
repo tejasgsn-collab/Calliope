@@ -3,7 +3,7 @@ import tempfile
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from Extensions import VariableViewer as VV, Highlighter as hltr, Navigator
+from Extensions import VariableViewer as VV, Highlighter as hltr, Navigator, TerminalWidget
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -45,12 +45,7 @@ class Vertigo(QMainWindow):
         self.tabs.setTabsClosable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
 
-        self.console = QTextEdit()
-        self.console.setReadOnly(True)
-        self.console.setStyleSheet(
-            "background-color:#000000; color:#ffffff; font-family: Consolas; font-size: 11pt;"
-            )
-        self.console.keyPressEvent = self._console_keypress
+        self.console = TerminalWidget()
 
         self.navigator = Navigator()
         self.navigator.file_open_requested.connect(self.open_file)
@@ -77,7 +72,7 @@ class Vertigo(QMainWindow):
 
         self.process = QProcess(self)
         self.process.readyReadStandardOutput.connect(self._read_stdout)
-        self.process.readyReadStandardError.connect(self._read_stderr)
+        self.process.readyReadStandardError.connect(lambda data: self.console.write(data,level="Error"))
         self.process.finished.connect(self._process_finished)
         self.process.setProcessChannelMode(QProcess.ProcessChannelMode.SeparateChannels)
 
@@ -179,19 +174,18 @@ class Vertigo(QMainWindow):
                 continue
 
         # --- Normal stdout ---
-            self._console_write(line + "\n")
+            self.console.write(line + "\n")
 
         self._input_start = self.console.textCursor().position()
 
-
     def _read_stderr(self):
         data = self.process.readAllStandardError().data().decode()
-        self._console_write(data,self.error_color)
+        self.console.write(data,self.error_color)
 
     def _process_finished(self):
         try:
             self._var_dump_mode = False
-            self._console_write("\n[Process finished]\n", self.system_color)
+            self.console.write("\n[Process finished]\n", self.system_color)
 
             cursor = self.console.textCursor()
             cursor.movePosition(cursor.MoveOperation.End)
@@ -200,7 +194,6 @@ class Vertigo(QMainWindow):
             self.viewer.load_variables(self.Variables)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
-
 
     def _console_keypress(self, event):
         if self.process.state() != QProcess.ProcessState.Running:
@@ -220,7 +213,7 @@ class Vertigo(QMainWindow):
             text = self.console.toPlainText()[self._input_start:]
             self.process.write((text + "\n").encode())
 
-            self._console_write("")  # newline visually
+            self.console.write("")  # newline visually
             self._input_start = self.console.textCursor().position()
             return
 
@@ -340,7 +333,6 @@ class Vertigo(QMainWindow):
             self.process.kill()
             self.console.appendPlainText("\n[Process stopped]")
 
-
     def run_file(self):
         """Run current editor contents in a background Python process."""
         editor = self.tabs.currentWidget()
@@ -349,7 +341,7 @@ class Vertigo(QMainWindow):
         code = editor.toPlainText()
 
         if not code.strip():
-            self._console_write("[No code to run]\n")
+            self.console.write("[No code to run]\n")
             return
 
     # write temp script file
@@ -391,7 +383,7 @@ except Exception as e:
 
     # clear console and start
         self.console.clear()
-        self._console_write("[Running...]\n")
+        self.console.start_session("$ python script.py\n")
 
         cursor = self.console.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
@@ -407,8 +399,6 @@ except Exception as e:
     # start python subprocess
         self.process.start(sys.executable, [tmp.name])
 
-    def show_variables(self):
-        pass
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

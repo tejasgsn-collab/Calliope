@@ -1,9 +1,181 @@
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFileSystemModel, QTextCursor
-from PyQt6.QtWidgets import QWidget, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QHeaderView, QLabel, QTreeView, QTextEdit
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtWidgets import (
+    QWidget, 
+    QTreeWidget, 
+    QTreeWidgetItem, 
+    QVBoxLayout, 
+    QHeaderView, 
+    QLabel, 
+    QTreeView, 
+    QTextEdit,
+    QFileDialog,
+    QMessageBox,
+    QTabWidget
+    )
+from PyQt6.QtCore import Qt, pyqtSignal, QProcess
+from PyQt6.Qsci import QsciScintilla, QsciLexerPython
 import re
 import json
 from pathlib import Path
+import sys
+import tempfile
+import sys
+import os
+
+class coder(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.editor = QsciScintilla()
+
+        layout = QVBoxLayout(self)
+        lexer = QsciLexerPython()
+        self.editor.setLexer(lexer)
+# Line numbers
+        self.editor.setMarginType(0, QsciScintilla.MarginType.NumberMargin)
+        self.editor.setMarginWidth(0, "0000")
+# Auto indent
+        self.editor.setAutoIndent(True)
+# Tabs → spaces
+        self.editor.setIndentationsUseTabs(False)
+        self.editor.setIndentationWidth(4)
+# Brace matching
+        self.editor.setBraceMatching(QsciScintilla.BraceMatch.SloppyBraceMatch)
+
+# Caret line highlight
+        self.editor.setCaretLineVisible(True)
+        self.editor.setCaretLineBackgroundColor(QColor("#2a2a2a"))
+# UTF-8
+        self.editor.setUtf8(True)
+        layout.addWidget(self.editor)
+
+class TabWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.tabs = QTabWidget()
+        self.new_tab()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
+
+    def new_tab(self,name = "Untitled",path = None):
+        editor = coder()
+        editor.modificationChanged.connect(
+        lambda changed, e=editor: self._update_tab_title(e, changed)
+        )
+        editor.setUndoRedoEnabled(True)
+        editor.path = path
+        editor.setStyleSheet("font-family: Consolas; font-size: 11pt;")
+
+        self.tabs.addTab(editor, name)
+        self.tabs.setCurrentWidget(editor)
+    
+    def close_tab(self, index):
+        self.tabs.removeTab(index)
+
+    def _update_tab_title(self, editor, changed):
+        index = self.tabs.indexOf(editor)
+        if index == -1:
+            return
+
+        title = self.tabs.tabText(index)
+
+        if title.endswith("*"):
+            title = title[:-1]
+
+        if changed:
+            title += "*"
+
+        self.tabs.setTabText(index, title)
+
+    def open_file_dialog(self):
+        path, _ = QFileDialog.getOpenFileName(
+        self,
+        "Open Python File",
+        "",
+        "Python Files (*.py);;All Files (*.*)"
+    )
+        if not path:
+            return
+
+        self.open_file(path)
+
+    def iter_tabs(self):
+            for i in range(self.tabs.count()):
+                yield self.tabs.widget(i)
+
+    def set_current_editor(self, editor):
+        self.tabs.setCurrentWidget(editor)
+
+    def current_editor(self):
+        return self.tabs.currentWidget()
+
+    def open_file(self,path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            for editor in self.iter_tabs():
+                if editor.path == path:
+                    self.set_current_editor(editor)
+                    return
+
+            self.new_tab(os.path.basename(path))
+            self.path = path
+
+            editor = self.tabs.currentWidget()
+            editor.path = path
+            editor.setText(content)
+            editor.setModified(False)
+
+            self.statusBar().showMessage(f"Opened: {path}", 3000)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def save_file(self, SaveAs: bool = False):
+        editor: QTextEdit = self.current_editor()
+        if not editor:
+            return
+
+        original_path = getattr(editor, "path", None)
+
+    # Decide if Save As dialog is needed
+        if SaveAs or not original_path:
+            path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save File As",
+            original_path or "",
+            "Python Files (*.py);;All Files (*.*)"
+        )
+
+            if not path:
+                return
+        else:
+            path = original_path
+
+        try:
+            content = editor.toPlainText()
+
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            if SaveAs:
+            # Create NEW tab for the new file
+                self.new_tab(os.path.basename(path), path)
+                new_editor = self.current_editor()
+                new_editor.setText(content)
+                new_editor.setModified(False)
+            else:
+            # Normal Save — update existing tab
+                editor.setModified(False)
+
+                index = self.tabs.indexOf(editor)
+                self.tabs.setTabText(index, os.path.basename(path))
+
+            self.statusBar().showMessage("File saved", 2000)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
 class Highlighter(QSyntaxHighlighter):
     def __init__(self, document):
@@ -314,3 +486,76 @@ class TerminalWidget(QWidget):
 
         self._input_start = cursor.position()
         self._running = True
+
+class RunnerEngine():
+    def __init__():
+        pass
+    def stop_run(self):
+        if self.process.state() != QProcess.ProcessState.NotRunning:
+            self.process.kill()
+            self.console.appendPlainText("\n[Process stopped]")
+    def run_file(self):
+        """Run current editor contents in a background Python process."""
+        editor = self.tabs.currentWidget()
+        if not isinstance(editor, QTextEdit):
+            return
+        code = editor.toPlainText()
+
+        if not code.strip():
+            self.console.write("[No code to run]\n")
+            return
+
+    # write temp script file
+        safe = repr(code)
+
+        wrapped = f"""
+import ast
+import sys
+import time
+
+code = {safe}
+namespace = {{}}
+
+try:
+    tree = ast.parse(code)
+
+    for node in tree.body:
+        single = ast.Module(body=[node], type_ignores=[])
+        compiled = compile(single, "<vertigo>", "exec")
+        exec(compiled, namespace)
+
+        print("__VAR_DUMP__")
+        for var, val in namespace.items():
+            if not var.startswith("__") and not callable(var):
+                print(f"{{var}}|||{{type(val).__name__}}|||{{repr(val)}}")
+        print("__END_VAR_DUMP__")
+
+        sys.stdout.flush()
+        time.sleep(0.15)
+
+except Exception as e:
+    print("__Error_Occured__")
+    print(e)
+    sys.stdout.flush()
+"""
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".py")
+        tmp.write(wrapped.encode("utf-8"))
+        tmp.close()
+
+    # clear console and start
+        self.console.clear()
+        self.console.start_session("$ python script.py\n")
+
+        cursor = self.console.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self.console.setTextCursor(cursor)
+        self._input_start = cursor.position()
+
+        self._input_start = self.console.textCursor().position()
+
+    # stop previous run if still active
+        if self.process.state() != QProcess.ProcessState.NotRunning:
+            self.process.kill()
+
+    # start python subprocess
+        self.process.start(sys.executable, [tmp.name])

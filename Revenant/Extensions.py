@@ -1,4 +1,4 @@
-from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor
+from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFileSystemModel
 from PyQt6.QtWidgets import (
     QWidget,
     QTreeWidget,
@@ -10,11 +10,10 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QFileDialog,
     QMessageBox,
-    QTabWidget
+    QTabWidget,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QProcess
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QFileSystemModel
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython
 
 import re
@@ -217,7 +216,7 @@ class Navigator(QWidget):
 
         self.model = QFileSystemModel()
         self.model.setRootPath(path)
-
+        self.model.setOption(QFileSystemModel.Option.DontWatchForChanges, True)
         self.tree = QTreeView()
         self.tree.setModel(self.model)
         self.tree.setRootIndex(self.model.index(path))
@@ -333,7 +332,6 @@ class VariableViewer(QWidget):
 
 class TerminalWidget(QWidget):
     input_submitted = pyqtSignal(str)
-
     def __init__(self):
         super().__init__()
 
@@ -343,14 +341,11 @@ class TerminalWidget(QWidget):
         self.output.setStyleSheet(
             "background-color:#000000; color:#ffffff; font-family: Consolas; font-size: 11pt;"
         )
+
         layout.addWidget(self.output)
 
         self._input_start = 0
         self._running = False
-
-        self.default_color = QColor("#FFFFFF")
-        self.error_color = QColor("#FF5555")
-        self.system_color = QColor("#888888")
 
         self.output.keyPressEvent = self._handle_keypress
 
@@ -358,13 +353,6 @@ class TerminalWidget(QWidget):
         cursor = self.output.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self.output.setTextCursor(cursor)
-
-        if level == "error":
-            self.output.setTextColor(self.error_color)
-        elif level == "system":
-            self.output.setTextColor(self.system_color)
-        else:
-            self.output.setTextColor(self.default_color)
 
         self.output.insertPlainText(text)
         self.output.ensureCursorVisible()
@@ -378,8 +366,9 @@ class TerminalWidget(QWidget):
 
     def start_session(self, banner_text=""):
         self.clear()
+
         if banner_text:
-            self.write(banner_text, level="system")
+            self.write(banner_text)
 
         cursor = self.output.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
@@ -387,6 +376,26 @@ class TerminalWidget(QWidget):
 
         self._input_start = cursor.position()
         self._running = True
+
+    def _handle_keypress(self, event):
+        cursor = self.output.textCursor()
+
+        if event.key() == Qt.Key.Key_Return:
+            cursor.movePosition(cursor.MoveOperation.End)
+            self.output.setTextCursor(cursor)
+
+            text = self.output.toPlainText()[self._input_start:]
+            self.input_submitted.emit(text.strip())
+
+            self.write("\n")
+            self._input_start = len(self.output.toPlainText())
+            return
+
+        if cursor.position() < self._input_start:
+            cursor.setPosition(self._input_start)
+            self.output.setTextCursor(cursor)
+
+        QTextEdit.keyPressEvent(self.output, event)
 
 
 # =========================

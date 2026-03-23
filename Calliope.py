@@ -20,10 +20,12 @@ class Calliope(QMainWindow):
         self.resize(800, 600)
         self.editor = CodeEditor()
         self.viewer = ViewerWidget({"a":1,"b":"hello world","c":[1,2,3]})
+        self.terminal = PseudoTerminal()
         self.splitter = QSplitter()
         self.splitter.addWidget(self.editor)
         self.splitter.addWidget(self.viewer)
-        self.splitter.setSizes([400, 400])
+        self.splitter.addWidget(self.terminal)
+        self.splitter.setSizes([250,250,300])
         self.setCentralWidget(self.splitter)
 
 if __name__ == "__main__":

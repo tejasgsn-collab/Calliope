@@ -2,20 +2,16 @@ import sys
 
 from PyQt6.QtGui import QSyntaxHighlighter, QTextCharFormat, QColor, QFileSystemModel,QAction, QFont
 from PyQt6.QtWidgets import (
-    QApplication,
-    QMainWindow,
     QWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    QHeaderView,
+    QTextEdit,
+    QLineEdit,
     QLabel,
     QTreeView,
-    QTextEdit,
-    QSplitter,
-    QFileDialog,
-    QMessageBox,
     QTabWidget,
+    QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QProcess
 from PyQt6.Qsci import QsciScintilla, QsciLexerPython
@@ -23,6 +19,7 @@ from PyQt6.Qsci import QsciScintilla, QsciLexerPython
 class CodeEditor(QsciScintilla):
     def __init__(self):
         super().__init__()
+        self.lexer = QsciLexerPython()
         
 
         self.configure_editor()
@@ -196,3 +193,13 @@ class ViewerWidget(QWidget):
 
     def remove_row(self,row):
         self.viewer.removeRow(row)
+
+class PseudoTerminal(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.Area = QScrollArea()
+        self.Area.setWidgetResizable(True)
+        intermediate = QWidget()
+        self.Layout = QVBoxLayout()
+        intermediate.setLayout(self.Layout)
+        self.Area.setWidget(intermediate)
